@@ -16,14 +16,20 @@ The analysis transforms raw CSV logs into a modified **Star Schema** optimized f
 ## Repository Structure
 ```text
 .
-├── sql/
-│   ├── normal_query_cleanup.sql  <-- Database Viewing and Fixes ingestion headers (string_field_0 issue)
-│   ├── sales_costs_profit_analysis_on_Orders.sql  <-- Visualize the actual sales, costs andf profits
-|   ├── return_rate_analysis.sql <-- Calculate Impact of Return on Actual Sales
-│   └── people_performance_on_orders_and_returns.sql <-- Analyze Aggregates Sales vs. Profit by Regional Manager
+├── datasets/
+│   ├── Orders.csv   <-- Extracted Orders table from sample.xls in .csv format
+│   ├── People.csv   <-- Extracted People table from sample.xls in .csv format
+│   ├── Returns.csv  <-- Extracted Returns table from sample.xls in .csv format
+│   └── sample.xls   <-- Original dataset in .xls file format
+
 ├── docs/
-│   ├── analysis_report.pdf         <-- Summary of findings for
-│   └── visuals/                    <-- Charts and graph images
+│   ├── analysis_report.pdf  <-- Summary of findings for the provided datasets (Orders.csv, People.csv and Returns.csv)
+│   └── visuals/             <-- Charts and graph images
+├── sql/
+│   ├── normal_query_cleanup.sql                      <-- Database Viewing and Fixes ingestion headers (string_field_0 issue)
+|   ├── people_performance_on_orders_and_returns.sql  <-- Analyze Aggregates Sales vs. Profit by Regional Manager
+|   ├── return_rate_analysis.sql                      <-- Calculate Impact of Return on Actual Sales
+│   └── sales_costs_profit_analysis_on_Orders.sql     <-- Visualize the actual sales, costs andf profits
 └── README.md
 ```
 
