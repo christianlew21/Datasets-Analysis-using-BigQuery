@@ -20,7 +20,8 @@ The analysis transforms raw CSV logs into a modified **Star Schema** optimized f
 │   ├── Orders.csv   <-- Extracted Orders table from sample.xls in .csv format
 │   ├── People.csv   <-- Extracted People table from sample.xls in .csv format
 │   ├── Returns.csv  <-- Extracted Returns table from sample.xls in .csv format
-│   └── sample.xls   <-- Original dataset in .xls file format
+│   ├── sample.xls   <-- Original dataset in .xls file format
+│   └── scripts.py   <-- Python script to convert Excel sheets to CSV format
 
 ├── docs/
 │   ├── analysis_report.pdf  <-- Summary of findings for the provided datasets (Orders.csv, People.csv and Returns.csv)
