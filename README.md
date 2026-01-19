@@ -24,8 +24,9 @@ The analysis transforms raw CSV logs into a modified **Star Schema** optimized f
 │   └── scripts.py   <-- Python script to convert Excel sheets to CSV format
 
 ├── docs/
-│   ├── analysis_report.pdf  <-- Summary of findings for the provided datasets (Orders.csv, People.csv and Returns.csv)
-│   └── visuals/             <-- Charts and graph images
+│   ├── analysis_report.pdf      <-- Summary of findings for the provided datasets
+│   ├── DATA_FLOW_PIPELINE.md    <-- Complete data transformation flow with code & visualizations
+│   └── visuals/                 <-- Charts and graph images
 ├── sql/
 │   ├── normal_query_cleanup.sql                      <-- Database Viewing and Fixes ingestion headers (string_field_0 issue)
 |   ├── people_performance_on_orders_and_returns.sql  <-- Analyze Aggregates Sales vs. Profit by Regional Manager
