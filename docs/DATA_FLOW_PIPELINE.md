@@ -46,23 +46,6 @@ flowchart LR
     D2 --> E
     D3 --> E
     D4 --> E
-
-    style Source fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
-    style Extract fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-    style CSVs fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    style BQ fill:#fce4ec,stroke:#c2185b,stroke-width:2px
-    style Output fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    
-    style A fill:#a5d6a7,stroke:#2e7d32
-    style B fill:#ffcc80,stroke:#ef6c00
-    style C1 fill:#90caf9,stroke:#1565c0
-    style C2 fill:#90caf9,stroke:#1565c0
-    style C3 fill:#90caf9,stroke:#1565c0
-    style D1 fill:#f48fb1,stroke:#c2185b
-    style D2 fill:#f48fb1,stroke:#c2185b
-    style D3 fill:#f48fb1,stroke:#c2185b
-    style D4 fill:#f48fb1,stroke:#c2185b
-    style E fill:#ce93d8,stroke:#7b1fa2
 ```
 
 ---
