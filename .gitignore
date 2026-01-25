@@ -1,0 +1,9 @@
+# Key files
+*.key
+credentials/
+
+# VS code files
+.vscode/
+
+# Environment variables
+.env
