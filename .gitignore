@@ -7,3 +7,6 @@ credentials/
 
 # Environment variables
 .env
+
+*.pem
+datasets/venv/*
