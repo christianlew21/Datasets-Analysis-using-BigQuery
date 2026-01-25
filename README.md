@@ -20,21 +20,32 @@ flowchart LR
         A["sample.xls"]
     end
     
-    subgraph Extract["Python Extraction"]
+    subgraph Python["Python Pipeline"]
+        direction TB
+        M["main.py"]
         B["xls_export_to_csv.py"]
+        U["upload_csv_to_bigquery.py"]
+        M --> B
+        M --> U
     end
     
-    subgraph CSVs["CSV Files"]
-        C1["Orders.csv"]
-        C2["People.csv"]
-        C3["Returns.csv"]
+    subgraph CSVs["CSV Files (Cleaned Data)"]
+        C1["orders.csv"]
+        C2["people.csv"]
+        C3["returns.csv"]
     end
     
     subgraph BQ["Google BigQuery"]
+        direction TB
+        D0["Dataset Creation"]
         D1["Data Cleanup"]
         D2["Sales Analysis"]
         D3["Performance Analysis"]
         D4["Return Rate Analysis"]
+        D0 --> D1
+        D1 --> D2
+        D1 --> D3
+        D1 --> D4
     end
     
     subgraph Output["Insights"]
@@ -45,12 +56,10 @@ flowchart LR
     B --> C1
     B --> C2
     B --> C3
-    C1 --> D1
-    C2 --> D1
-    C3 --> D1
-    D1 --> D2
-    D1 --> D3
-    D1 --> D4
+    C1 --> U
+    C2 --> U
+    C3 --> U
+    U --> D0
     D2 --> E
     D3 --> E
     D4 --> E
@@ -62,8 +71,9 @@ flowchart LR
 
 | Technology | Purpose |
 |------------|---------|
-| **Python** (pandas) | Data extraction & CSV conversion |
+| **Python** (pandas, xlrd) | Data extraction & CSV conversion |
 | **Python** (google-cloud-bigquery) | Automated BigQuery upload |
+| **Python** (python-dotenv) | Environment variable management |
 | **Google BigQuery** | Cloud data warehouse |
 | **SQL** | Data transformation & analysis |
 
@@ -73,22 +83,22 @@ flowchart LR
 
 ```text
 .
-├── credentials/              <-- GCP service account credentials (gitignored)
+├── credentials/                    <-- GCP service account credentials (gitignored)
 ├── datasets/
 │   ├── Raw Data/
-│   │   └── sample.xls        <-- Original dataset
+│   │   └── sample.xls              <-- Original multi-sheet Excel dataset
 │   ├── Cleaned Data/
-│   │   ├── orders.csv        <-- Extracted Orders table (~9,000+ rows)
-│   │   ├── people.csv        <-- Extracted People table (4 rows)
-│   │   └── returns.csv       <-- Extracted Returns table (~300 rows)
-│   ├── main.py               <-- Entry point script
-│   ├── upload_csv_to_bigquery.py  <-- BigQuery upload automation
-│   ├── xls_export_to_csv.py  <-- Excel to CSV conversion
-│   ├── requirements.txt      <-- Python dependencies
-│   └── .env                  <-- Environment configuration
+│   │   ├── orders.csv              <-- Extracted Orders table (~9,000+ rows)
+│   │   ├── people.csv              <-- Extracted People table (4 rows)
+│   │   └── returns.csv             <-- Extracted Returns table (~300 rows)
+│   ├── main.py                     <-- Entry point script (orchestrates pipeline)
+│   ├── xls_export_to_csv.py        <-- Excel to CSV conversion with column cleaning
+│   ├── upload_csv_to_bigquery.py   <-- BigQuery upload automation
+│   ├── requirements.txt            <-- Python dependencies
+│   └── .env                        <-- Environment configuration (GCP_PROJECT_ID, DATASET_ID)
 ├── docs/
-│   ├── analysis_report.pdf   <-- Summary of findings
-│   └── visuals/              <-- Chart visualizations
+│   ├── analysis_report.pdf         <-- Summary of findings
+│   └── visuals/                    <-- Chart visualizations (25 images)
 ├── sql/
 │   ├── normal_query_cleanup.sql
 │   ├── people_performance_on_orders_and_returns.sql
@@ -113,25 +123,35 @@ The analysis transforms raw CSV logs into a modified **Star Schema** optimized f
 
 ## Step 1: Data Extraction (Python)
 
-**Purpose:** Convert multi-sheet Excel file into separate CSV files for BigQuery ingestion.
+**Purpose:** Convert multi-sheet Excel file into separate CSV files with cleaned column names for BigQuery compatibility.
 
 **Script:** [`datasets/xls_export_to_csv.py`](datasets/xls_export_to_csv.py)
 
 ```python
 import pandas as pd
+import re
+import os
 
-# Read the Excel file
-xls_file = pd.ExcelFile('sample.xls')
+def clean_column_and_sheet_names(text: str):
+    """Standardizes strings for BigQuery: lowercase, alphanumeric + underscores only."""
+    if text is None or str(text).strip() == "":
+        return "unnamed_field"
+    cleaned_name = re.sub(r'[^a-zA-Z0-9]+', '_', str(text))
+    cleaned_name = re.sub(r'_+', '_', cleaned_name).strip('_').lower()
+    if cleaned_name == "":
+        return "unnamed_field"
+    if cleaned_name[0].isdigit():
+        cleaned_name = f"n_{cleaned_name}"
+    return cleaned_name
 
-sheet_names = xls_file.sheet_names
-
-# Loop through each sheet and save as csv
-for sheet_name in sheet_names:
-    df = pd.read_excel(xls_file, sheet_name=sheet_name)
-    
-    # Save as CSV with sheet name
-    output_filename = f'{sheet_name}.csv'
-    df.to_csv(output_filename, index=False, encoding='utf-8')
+def export_sheets_to_csv():
+    """Loop through each Excel sheet and save as cleaned CSV."""
+    xls_file = pd.ExcelFile('Raw Data/sample.xls')
+    for sheet_name in xls_file.sheet_names:
+        df = pd.read_excel(xls_file, sheet_name=sheet_name)
+        df.columns = [clean_column_and_sheet_names(col) for col in df.columns]
+        output_filename = f'Cleaned Data/{clean_column_and_sheet_names(sheet_name)}.csv'
+        df.to_csv(output_filename, index=False, encoding='utf-8')
 ```
 
 **Output:** 3 CSV files extracted from Excel sheets:
@@ -141,6 +161,48 @@ for sheet_name in sheet_names:
 | Orders.csv | Transactional sales data | ~9,000+ rows |
 | People.csv | Regional Manager assignments | 4 rows |
 | Returns.csv | Return status flags | ~300 rows |
+
+---
+
+## Step 1.5: BigQuery Upload (Python)
+
+**Purpose:** Automatically create BigQuery dataset and upload all cleaned CSV files.
+
+**Script:** [`datasets/upload_csv_to_bigquery.py`](datasets/upload_csv_to_bigquery.py)
+
+```python
+from google.cloud import bigquery
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+# BigQuery Configuration from .env
+PROJECT_ID = os.getenv('GCP_PROJECT_ID')
+DATASET_ID = os.getenv('DATASET_ID')
+
+client = bigquery.Client()
+
+def upload_csv_to_bigquery():
+    """Uploads all CSV files from the Cleaned Data folder to BigQuery."""
+    csv_folder = "Cleaned Data"
+    for filename in os.listdir(csv_folder):
+        if filename.endswith('.csv'):
+            table_name = filename[:-4]
+            # Configure and execute load job with auto-schema detection
+            job_config = bigquery.LoadJobConfig(
+                source_format=bigquery.SourceFormat.CSV,
+                skip_leading_rows=1,
+                write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE
+            )
+            # Load CSV to BigQuery table
+            client.load_table_from_file(file, f"{PROJECT_ID}.{DATASET_ID}.{table_name}")
+```
+
+**Features:**
+- Auto-creates dataset if it doesn't exist (Singapore region: `asia-southeast1`)
+- Schema detection from CSV headers
+- Truncates existing tables on re-upload
 
 ---
 
@@ -346,11 +408,27 @@ ORDER BY lost_profit_due_to_return DESC;
    ```
 3. Configure environment variables in `.env`:
    ```
-   GOOGLE_APPLICATION_CREDENTIALS=path/to/credentials.json
+   GCP_PROJECT_ID=your-gcp-project-id
+   DATASET_ID=your-bigquery-dataset-name
    ```
-4. Place your GCP service account JSON in the `credentials/` folder
+4. Set up Google Cloud authentication:
+   ```bash
+   gcloud auth application-default login
+   ```
+   Or place your GCP service account JSON in the `credentials/` folder and set:
+   ```
+   GOOGLE_APPLICATION_CREDENTIALS=credentials/your-service-account.json
+   ```
 
 ### Running the Pipeline
+
+**Option 1: Run full pipeline (recommended)**
+```bash
+cd datasets
+python main.py
+```
+
+**Option 2: Run individual steps**
 1. **Extract CSV files from Excel:**
    ```bash
    python xls_export_to_csv.py
