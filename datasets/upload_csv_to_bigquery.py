@@ -1,6 +1,8 @@
 from google.cloud import bigquery
 from dotenv import load_dotenv
+import pandas as pd
 import os
+import json
 
 load_dotenv()
 
@@ -30,6 +32,62 @@ except Exception as e:
     client.create_dataset(dataset)
     print(f"Dataset {DATASET_ID} created.")
 
+
+def infer_schema_with_overrides(csv_path, table_name, overrides_path="schema_override.json"):
+    """
+    Infer schema from CSV using pandas, then apply manual overrides for specific columns.
+    
+    Args:
+        csv_path: Path to the CSV file
+        table_name: Name of the table (used to lookup overrides)
+        overrides_path: Path to the JSON file with schema overrides
+    
+    Returns:
+        List of bigquery.SchemaField objects
+    """
+    overrides = {}
+    
+    print(f"Checking for overrides for {table_name}")
+
+    try:
+        with open(overrides_path, 'r') as f:
+            all_overrides = json.load(f)
+            overrides = all_overrides.get(table_name, {})
+            if overrides:
+                print(f"Found {len(overrides)} override(s) for {table_name}")
+    except FileNotFoundError:
+        print(f"No override file found at '{overrides_path}', using pure inference")
+    except json.JSONDecodeError as e:
+        print(f"Error parsing override file: {e}")
+
+    # Read CSV to understand the data
+    df = pd.read_csv(csv_path, nrows=1000)  # Sample first 1000 rows for inference
+    
+    # Pandas to BigQuery type mapping
+    type_mapping = {
+        'int64': 'INTEGER',
+        'float64': 'FLOAT64',
+        'object': 'STRING',
+        'bool': 'BOOLEAN',
+        'datetime64[ns]': 'TIMESTAMP',
+    }
+    
+    schema = []
+    overriden_columns = []
+
+    for column_name, dtype in df.dtypes.items():
+        # Check if there's an override for this column
+        if column_name in overrides:
+            overriden_columns.append(column_name)
+            bq_type = overrides[column_name]
+        else:
+            # Use inferred type from pandas
+            bq_type = type_mapping.get(str(dtype), 'STRING')
+
+        schema.append(bigquery.SchemaField(column_name, bq_type))
+    
+    return schema
+
 def upload_csv_to_bigquery():
     """
     Uploads all CSV files from the Cleaned Data folder to BigQuery.
@@ -57,18 +115,14 @@ def upload_csv_to_bigquery():
 
         # Configure the load job
         try:
-            # Read the header row to set schemas for tables
-            with open(file_path, "r", encoding="utf-8") as f:
-                header_line = f.readline().strip()
-                columns = header_line.split(",")
-            
-            # Define schema from header columns
-            schema = [bigquery.SchemaField(col, "STRING") for col in columns]
-            
+            # Auto-infer schema from CSV using pandas
+            schema = infer_schema_with_overrides(file_path, table_name)
+
+            # Configure the load job with inferred schema
             job_config = bigquery.LoadJobConfig(
                 source_format=bigquery.SourceFormat.CSV,
                 schema=schema,
-                skip_leading_rows=1,  # Skip the header row since we defined schema
+                skip_leading_rows=1,  
                 write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE
             )
             # Load the CSV into BigQuery
